@@ -15,108 +15,99 @@ prefix_round_robin_table = "RoundRobinRatingsPart"
 
 def RangeQuery(ratingsTableName, ratingMinValue, ratingMaxValue, openconnection):
     cursors = openconnection.cursor()
-    l_new = []
-
     cursors.execute("select count(*) from RangeRatingsMetaData;")
     countrange = int(cursors.fetchone()[0])
 
-    for i in range(countrange):
-        l_new.append(
-            "SELECT '"
-            + prefix_of_range_table
-            + str(i)
-            + "' AS tablename, userid, movieid, rating FROM rangeratingspart"
-            + str(i)
-            + " WHERE rating >= "
-            + str(ratingMinValue)
-            + " AND rating <= "
-            + str(ratingMaxValue)
-        )
+    l_new = [
+        "SELECT '"
+        + prefix_of_range_table
+        + str(i)
+        + "' AS tablename, userid, movieid, rating FROM rangeratingspart"
+        + str(i)
+        + " WHERE rating >= "
+        + str(ratingMinValue)
+        + " AND rating <= "
+        + str(ratingMaxValue)
+        for i in range(countrange)
+    ]
 
     cursors.execute("SELECT PartitionNum FROM RoundRobinRatingsMetadata")
     roundpartitions = int(cursors.fetchone()[0])
 
-    for i in range(roundpartitions):
-        l_new.append(
-            "SELECT '"
-            + prefix_round_robin_table
-            + str(i)
-            + "' AS tablename, userid, movieid, rating FROM roundrobinratingspart"
-            + str(i)
-            + " WHERE rating >= "
-            + str(ratingMinValue)
-            + " AND rating <= "
-            + str(ratingMaxValue)
-        )
+    l_new.extend(
+        "SELECT '"
+        + prefix_round_robin_table
+        + str(i)
+        + "' AS tablename, userid, movieid, rating FROM roundrobinratingspart"
+        + str(i)
+        + " WHERE rating >= "
+        + str(ratingMinValue)
+        + " AND rating <= "
+        + str(ratingMaxValue)
+        for i in range(roundpartitions)
+    )
 
     queryop = "SELECT * FROM ({0}) AS T".format(" UNION ALL ".join(l_new))
-    fileop = open("RangeQueryOut.txt", "w")
+    with open("RangeQueryOut.txt", "w") as fileop:
+        write_file = (
+            "COPY ("
+            + queryop
+            + ") TO '"
+            + os.path.abspath(fileop.name)
+            + "' (FORMAT text, DELIMITER ',')"
+        )
+        cursors.execute(write_file)
 
-    write_file = (
-        "COPY ("
-        + queryop
-        + ") TO '"
-        + os.path.abspath(fileop.name)
-        + "' (FORMAT text, DELIMITER ',')"
-    )
-    cursors.execute(write_file)
-
-    cursors.close()
-    fileop.close()
+        cursors.close()
 
 
 def PointQuery(ratingsTableName, ratingValue, openconnection):
     cursors = openconnection.cursor()
-    l_new = []
-
     cursors.execute("SELECT COUNT(*) FROM RangeRatingsMetadata")
     countrange = int(cursors.fetchone()[0])
 
-    for i in range(countrange):
-        l_new.append(
-            "SELECT '"
-            + prefix_of_range_table
-            + str(i)
-            + "'AS tablename, userid, movieid, rating FROM rangeratingspart"
-            + str(i)
-            + " WHERE rating = "
-            + str(ratingValue)
-        )
+    l_new = [
+        "SELECT '"
+        + prefix_of_range_table
+        + str(i)
+        + "'AS tablename, userid, movieid, rating FROM rangeratingspart"
+        + str(i)
+        + " WHERE rating = "
+        + str(ratingValue)
+        for i in range(countrange)
+    ]
 
     cursors.execute("SELECT PartitionNum FROM RoundRobinRatingsMetadata")
     roundnpartitions = int(cursors.fetchone()[0])
 
-    for i in range(roundnpartitions):
-        l_new.append(
-            "SELECT '"
-            + prefix_round_robin_table
-            + str(i)
-            + "' AS tablename, userid, movieid, rating FROM roundrobinratingspart"
-            + str(i)
-            + " WHERE rating = "
-            + str(ratingValue)
-        )
-
-    queryop = "SELECT * FROM ({0}) AS T".format(" UNION ALL ".join(l_new))
-    fileop = open("PointQueryOut.txt", "w")
-
-    filewrite = (
-        "COPY ("
-        + queryop
-        + ") TO '"
-        + os.path.abspath(fileop.name)
-        + "' (FORMAT text, DELIMITER ',')"
+    l_new.extend(
+        "SELECT '"
+        + prefix_round_robin_table
+        + str(i)
+        + "' AS tablename, userid, movieid, rating FROM roundrobinratingspart"
+        + str(i)
+        + " WHERE rating = "
+        + str(ratingValue)
+        for i in range(roundnpartitions)
     )
 
-    cursors.execute(filewrite)
+    queryop = "SELECT * FROM ({0}) AS T".format(" UNION ALL ".join(l_new))
+    with open("PointQueryOut.txt", "w") as fileop:
+        filewrite = (
+            "COPY ("
+            + queryop
+            + ") TO '"
+            + os.path.abspath(fileop.name)
+            + "' (FORMAT text, DELIMITER ',')"
+        )
 
-    cursors.close()
-    fileop.close()
+        cursors.execute(filewrite)
+
+        cursors.close()
 
 
 def writeToFile(filename, rows):
-    f = open(filename, "w")
-    for line in rows:
-        f.write(",".join(str(s) for s in line))
-        f.write("\n")
-    f.close()
+    with open(filename, "w") as f:
+        for line in rows:
+            f.write(",".join(str(s) for s in line))
+            f.write("\n")

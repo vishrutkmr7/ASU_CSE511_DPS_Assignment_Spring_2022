@@ -49,21 +49,19 @@ def rangePartition(ratingstablename, numberofpartitions, openconnection):
         return
     if math.floor(numberofpartitions) != math.ceil(numberofpartitions):
         return
-    list_of_partitions = []
     name = "range_part"
     values = round((5 / numberofpartitions), 2)
     border = 0
-    for k in range(0, numberofpartitions):
-        list_of_partitions.append((name + str(k)))
-    for k in range(0, numberofpartitions):
+    list_of_partitions = [name + str(k) for k in range(numberofpartitions)]
+    for k in range(numberofpartitions):
+        database_cursor = openconnection.cursor()
+        database_cursor.execute(
+            "Create TABLE "
+            + list_of_partitions[k]
+            + " (userid INT,movieid INT,rating FLOAT)"
+        )
+        openconnection.commit()
         if k == 0:
-            database_cursor = openconnection.cursor()
-            database_cursor.execute(
-                "Create TABLE "
-                + list_of_partitions[k]
-                + " (userid INT,movieid INT,rating FLOAT)"
-            )
-            openconnection.commit()
             database_cursor.execute(
                 "insert into "
                 + list_of_partitions[k]
@@ -78,13 +76,6 @@ def rangePartition(ratingstablename, numberofpartitions, openconnection):
             openconnection.commit()
             border = values
         else:
-            database_cursor = openconnection.cursor()
-            database_cursor.execute(
-                "Create TABLE "
-                + list_of_partitions[k]
-                + " (userid INT,movieid INT,rating FLOAT)"
-            )
-            openconnection.commit()
             database_cursor.execute(
                 "insert into "
                 + list_of_partitions[k]
@@ -105,11 +96,9 @@ def roundRobinPartition(ratingstablename, numberofpartitions, openconnection):
         return
     if math.floor(numberofpartitions) != math.ceil(numberofpartitions):
         return
-    list_of_partitions = []
     name = "rrobin_part"
-    for k in range(0, numberofpartitions):
-        list_of_partitions.append((name + str(k)))
-    for k in range(0, numberofpartitions):
+    list_of_partitions = [name + str(k) for k in range(numberofpartitions)]
+    for k in range(numberofpartitions):
         database_cursor = openconnection.cursor()
         database_cursor.execute(
             "Create TABLE "
@@ -128,8 +117,6 @@ def roundRobinPartition(ratingstablename, numberofpartitions, openconnection):
                 + "="
                 + str(k + 1)
             )
-            openconnection.commit()
-
         else:
             database_cursor.execute(
                 "insert into "
@@ -141,7 +128,8 @@ def roundRobinPartition(ratingstablename, numberofpartitions, openconnection):
                 + "="
                 + str(0)
             )
-            openconnection.commit()
+
+        openconnection.commit()
 
 
 def roundrobininsert(ratingstablename, userid, itemid, rating, openconnection):
@@ -152,9 +140,9 @@ def roundrobininsert(ratingstablename, userid, itemid, rating, openconnection):
         "select count(*) from (SELECT tablename FROM pg_catalog.pg_tables WHERE tablename like 'rrobin_part%') as temp"
     )
     count_of_partition = int(database_cursor.fetchone()[0])
-    database_cursor.execute("SELECT COUNT(*) from {}".format(ratingstablename))
+    database_cursor.execute(f"SELECT COUNT(*) from {ratingstablename}")
     count_of_dataset = int(database_cursor.fetchone()[0])
-    table_name = "rrobin_part" + str((count_of_dataset % count_of_partition))
+    table_name = f"rrobin_part{str(count_of_dataset % count_of_partition)}"
     database_cursor.execute(
         "insert into "
         + ratingstablename
@@ -192,8 +180,8 @@ def rangeinsert(ratingstablename, userid, itemid, rating, openconnection):
     values = round((5 / count_of_partition), 2)
     no_of_partitions = int(rating / values)
     if rating % values == 0 and no_of_partitions != 0:
-        no_of_partitions = no_of_partitions - 1
-    table_name = "range_part" + str(no_of_partitions)
+        no_of_partitions -= 1
+    table_name = f"range_part{no_of_partitions}"
     database_cursor.execute(
         "insert into "
         + ratingstablename
@@ -229,7 +217,7 @@ def createDB(dbname="dds_assignment"):
     )
     counts = curr.fetchone()[0]
     if counts == 0:
-        curr.execute("CREATE DATABASE %s" % (dbname,))
+        curr.execute(f"CREATE DATABASE {dbname}")
     else:
         print("A database named {0} already exists".format(dbname))
     curr.close()
@@ -241,9 +229,7 @@ def deletepartitionsandexit(openconnection):
     curr.execute(
         "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
     )
-    k = []
-    for i in curr:
-        k.append(i[0])
+    k = [i[0] for i in curr]
     for nameoftable in k:
         curr.execute("drop table if exists {0} CASCADE".format(nameoftable))
     curr.close()
@@ -258,18 +244,18 @@ def deleteTables(ratingstablename, openconnection):
             )
             all_tables = database_cursor.fetchall()
             for table in all_tables:
-                database_cursor.execute("DROP TABLE %s CASCADE" % (table[0]))
+                database_cursor.execute(f"DROP TABLE {table[0]} CASCADE")
         else:
-            database_cursor.execute("DROP TABLE %s CASCADE" % (ratingstablename))
+            database_cursor.execute(f"DROP TABLE {ratingstablename} CASCADE")
         openconnection.commit()
     except psycopg2.DatabaseError as e:
         if openconnection:
             openconnection.rollback()
-        print("Error %s" % e)
+        print(f"Error {e}")
     except IOError as e:
         if openconnection:
             openconnection.rollback()
-        print("Error %s" % e)
+        print(f"Error {e}")
     finally:
         if database_cursor:
             database_cursor.close()

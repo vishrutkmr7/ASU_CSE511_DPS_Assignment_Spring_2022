@@ -21,34 +21,31 @@ def getOpenConnection(user="postgres", password="1234", dbname="postgres"):
 def loadRatings(ratingstablename, ratingsfilepath, openconnection):
     conn = openconnection
     cur = conn.cursor()
-    cur.execute("drop table if exists {}".format(ratingstablename))
+    cur.execute(f"drop table if exists {ratingstablename}")
     conn.commit()
     cur.execute(
-        "CREATE TABLE {} (userid int,test1 varchar(15),movieid int,test2 varchar(15),rating float,test3 varchar(15),time_stamp int);".format(
-            ratingstablename
+        f"CREATE TABLE {ratingstablename} (userid int,test1 varchar(15),movieid int,test2 varchar(15),rating float,test3 varchar(15),time_stamp int);"
+    )
+
+    with open(ratingsfilepath, "r") as file:
+        cur.copy_from(
+            file,
+            ratingstablename,
+            sep=":",
+            columns=(
+                "userid",
+                "test1",
+                "movieid",
+                "test2",
+                "rating",
+                "test3",
+                "time_stamp",
+            ),
         )
-    )
-    file = open(ratingsfilepath, "r")
-    cur.copy_from(
-        file,
-        ratingstablename,
-        sep=":",
-        columns=(
-            "userid",
-            "test1",
-            "movieid",
-            "test2",
-            "rating",
-            "test3",
-            "time_stamp",
-        ),
-    )
-    cur.execute(
-        "ALTER TABLE {} drop column test1,drop column test2,drop column test3,drop column time_stamp".format(
-            ratingstablename
+        cur.execute(
+            f"ALTER TABLE {ratingstablename} drop column test1,drop column test2,drop column test3,drop column time_stamp"
         )
-    )
-    file.close()
+
     conn.commit()
     cur.close()
 
@@ -64,20 +61,18 @@ def rangePartition(ratingstablename, numberofpartitions, openconnection):
         endr = start + part
         if tableno == 0:
             cur.execute(
-                "SELECT * FROM {} WHERE {}.Rating >= {} AND {}.Rating <= {} ORDER BY Rating ASC".format(
-                    ratingstablename, ratingstablename, start, ratingstablename, endr
-                )
+                f"SELECT * FROM {ratingstablename} WHERE {ratingstablename}.Rating >= {start} AND {ratingstablename}.Rating <= {endr} ORDER BY Rating ASC"
             )
+
         else:
             cur.execute(
-                "SELECT * FROM {} WHERE {}.Rating > {} AND {}.Rating <= {} ORDER BY Rating ASC".format(
-                    ratingstablename, ratingstablename, start, ratingstablename, endr
-                )
+                f"SELECT * FROM {ratingstablename} WHERE {ratingstablename}.Rating > {start} AND {ratingstablename}.Rating <= {endr} ORDER BY Rating ASC"
             )
+
 
         start = endr
         temp = cur.fetchall()
-        cur.execute("DROP TABLE IF EXISTS range_part{}".format(tableno))
+        cur.execute(f"DROP TABLE IF EXISTS range_part{tableno}")
         cur.execute(
             """
             CREATE TABLE range_part{} (
@@ -92,9 +87,7 @@ def rangePartition(ratingstablename, numberofpartitions, openconnection):
         )
         for r in temp:
             cur.execute(
-                "INSERT INTO range_part{}(UserID, MovieID, Rating) VALUES ({},{},{})".format(
-                    tableno, r[0], r[1], r[2]
-                )
+                f"INSERT INTO range_part{tableno}(UserID, MovieID, Rating) VALUES ({r[0]},{r[1]},{r[2]})"
             )
 
 
@@ -104,7 +97,7 @@ def roundRobinPartition(ratingstablename, numberofpartitions, openconnection):
     conn = openconnection
     cur = conn.cursor()
     for i in range(numberofpartitions):
-        cur.execute("DROP TABLE IF EXISTS rrobin_part{}".format(i))
+        cur.execute(f"DROP TABLE IF EXISTS rrobin_part{i}")
         cur.execute(
             """
             CREATE TABLE rrobin_part{} (
@@ -118,14 +111,12 @@ def roundRobinPartition(ratingstablename, numberofpartitions, openconnection):
             )
         )
 
-    cur.execute("SELECT * FROM {}".format(ratingstablename))
+    cur.execute(f"SELECT * FROM {ratingstablename}")
     temp = cur.fetchall()
     for rn, rd in enumerate(temp):
         i = rn % numberofpartitions
         cur.execute(
-            "INSERT INTO rrobin_part{}(UserID, MovieID, Rating) VALUES ({},{},{})".format(
-                i, rd[0], rd[1], rd[2]
-            )
+            f"INSERT INTO rrobin_part{i}(UserID, MovieID, Rating) VALUES ({rd[0]},{rd[1]},{rd[2]})"
         )
 
 
@@ -164,14 +155,11 @@ def roundrobininsert(ratingstablename, userid, itemid, rating, openconnection):
             tableno = i
 
     cur.execute(
-        "INSERT INTO rrobin_part{}(UserID, MovieID, Rating) VALUES ({},{},{})".format(
-            tableno, userid, itemid, rating
-        )
+        f"INSERT INTO rrobin_part{tableno}(UserID, MovieID, Rating) VALUES ({userid},{itemid},{rating})"
     )
+
     cur.execute(
-        "INSERT INTO {} (UserID, MovieID, Rating) VALUES ({},{},{})".format(
-            ratingstablename, userid, itemid, rating
-        )
+        f"INSERT INTO {ratingstablename} (UserID, MovieID, Rating) VALUES ({userid},{itemid},{rating})"
     )
 
 
@@ -194,9 +182,7 @@ def rangeinsert(ratingstablename, userid, itemid, rating, openconnection):
         tableno -= 1
 
     cur.execute(
-        "INSERT INTO range_part{}(UserID, MovieID, Rating) VALUES ({},{},{})".format(
-            tableno, userid, itemid, rating
-        )
+        f"INSERT INTO range_part{tableno}(UserID, MovieID, Rating) VALUES ({userid},{itemid},{rating})"
     )
 
 
@@ -217,7 +203,7 @@ def createDB(dbname="dds_assignment"):
     )
     count = cur.fetchone()[0]
     if count == 0:
-        cur.execute("CREATE DATABASE %s" % (dbname,))  # Create the database
+        cur.execute(f"CREATE DATABASE {dbname}")
     else:
         print("A database named {0} already exists".format(dbname))
 
@@ -231,9 +217,7 @@ def deletepartitionsandexit(openconnection):
     cur.execute(
         "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
     )
-    l = []
-    for row in cur:
-        l.append(row[0])
+    l = [row[0] for row in cur]
     for tablename in l:
         cur.execute("drop table if exists {0} CASCADE".format(tablename))
 
@@ -249,18 +233,18 @@ def deleteTables(ratingstablename, openconnection):
             )
             tables = cursor.fetchall()
             for table_name in tables:
-                cursor.execute("DROP TABLE %s CASCADE" % (table_name[0]))
+                cursor.execute(f"DROP TABLE {table_name[0]} CASCADE")
         else:
-            cursor.execute("DROP TABLE %s CASCADE" % (ratingstablename))
+            cursor.execute(f"DROP TABLE {ratingstablename} CASCADE")
         openconnection.commit()
-    except (psycopg2.DatabaseError) as e:
+    except psycopg2.DatabaseError as e:
         if openconnection:
             openconnection.rollback()
-        print("Error %s" % e)
-    except (IOError) as e:
+        print(f"Error {e}")
+    except IOError as e:
         if openconnection:
             openconnection.rollback()
-        print("Error %s" % e)
+        print(f"Error {e}")
     finally:
         if cursor:
             cursor.close()

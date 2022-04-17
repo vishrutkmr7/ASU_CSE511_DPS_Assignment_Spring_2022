@@ -19,11 +19,11 @@ import traceback
 if __name__ == "__main__":
     try:
         # Creating Database ddsassignment2
-        print("Creating Database named as " + DATABASE_NAME)
+        print(f"Creating Database named as {DATABASE_NAME}")
         Assignment1.createDB(DATABASE_NAME)
 
         # Getting connection to the database
-        print("Getting connection from the " + DATABASE_NAME + " database")
+        print(f"Getting connection from the {DATABASE_NAME} database")
         con = Assignment1.getOpenConnection(dbname=DATABASE_NAME)
 
         # Clear the database existing tables

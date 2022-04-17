@@ -23,7 +23,7 @@ def createDB(dbname='dds_assignment'):
     cur.execute('SELECT COUNT(*) FROM pg_catalog.pg_database WHERE datname=\'%s\'' % (dbname,))
     count = cur.fetchone()[0]
     if count == 0:
-        cur.execute('CREATE DATABASE %s' % (dbname,))  # Create the database
+        cur.execute(f'CREATE DATABASE {dbname}')
     else:
         print('A database named "{0}" already exists'.format(dbname))
 
@@ -35,7 +35,7 @@ def delete_db(dbname):
     con = getOpenConnection(dbname = 'postgres')
     con.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
     cur = con.cursor()
-    cur.execute('drop database ' + dbname)
+    cur.execute(f'drop database {dbname}')
     cur.close()
     con.close()
 
@@ -43,9 +43,7 @@ def delete_db(dbname):
 def deleteAllPublicTables(openconnection):
     cur = openconnection.cursor()
     cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
-    l = []
-    for row in cur:
-        l.append(row[0])
+    l = [row[0] for row in cur]
     for tablename in l:
         cur.execute("drop table if exists {0} CASCADE".format(tablename))
 
@@ -65,13 +63,11 @@ def getCountrangepartition(ratingstablename, numberofpartitions, openconnection)
     :return:
     """
     cur = openconnection.cursor()
-    countList = []
     interval = 5.0 / numberofpartitions
     cur.execute("select count(*) from {0} where rating >= {1} and rating <= {2}".format(ratingstablename,0, interval))
-    countList.append(int(cur.fetchone()[0]))
-
+    countList = [int(cur.fetchone()[0])]
     lowerbound = interval
-    for i in range(1, numberofpartitions):
+    for _ in range(1, numberofpartitions):
         cur.execute("select count(*) from {0} where rating > {1} and rating <= {2}".format(ratingstablename,
                                                                                           lowerbound,
                                                                                           lowerbound + interval))
@@ -92,7 +88,7 @@ def getCountroundrobinpartition(ratingstablename, numberofpartitions, openconnec
     '''
     cur = openconnection.cursor()
     countList = []
-    for i in range(0, numberofpartitions):
+    for i in range(numberofpartitions):
         cur.execute(
             "select count(*) from (select *, row_number() over () from {0}) as temp where (row_number-1)%{1}= {2}".format(
                 ratingstablename, numberofpartitions, i))
@@ -114,12 +110,13 @@ def checkpartitioncount(cursor, expectedpartitions, prefix):
 
 
 def totalrowsinallpartitions(cur, n, rangepartitiontableprefix, partitionstartindex):
-    selects = []
-    for i in range(partitionstartindex, n + partitionstartindex):
-        selects.append('SELECT * FROM {0}{1}'.format(rangepartitiontableprefix, i))
+    selects = [
+        'SELECT * FROM {0}{1}'.format(rangepartitiontableprefix, i)
+        for i in range(partitionstartindex, n + partitionstartindex)
+    ]
+
     cur.execute('SELECT COUNT(*) FROM ({0}) AS T'.format(' UNION ALL '.join(selects)))
-    count = int(cur.fetchone()[0])
-    return count
+    return int(cur.fetchone()[0])
 
 
 def testrangeandrobinpartitioning(n, openconnection, rangepartitiontableprefix, partitionstartindex, ACTUAL_ROWS_IN_INPUT_FILE):
@@ -165,7 +162,7 @@ def testrangerobininsert(expectedtablename, itemid, openconnection, rating, user
 def testEachRangePartition(ratingstablename, n, openconnection, rangepartitiontableprefix):
     countList = getCountrangepartition(ratingstablename, n, openconnection)
     cur = openconnection.cursor()
-    for i in range(0, n):
+    for i in range(n):
         cur.execute("select count(*) from {0}{1}".format(rangepartitiontableprefix, i))
         count = int(cur.fetchone()[0])
         if count != countList[i]:
@@ -176,7 +173,7 @@ def testEachRangePartition(ratingstablename, n, openconnection, rangepartitionta
 def testEachRoundrobinPartition(ratingstablename, n, openconnection, roundrobinpartitiontableprefix):
     countList = getCountroundrobinpartition(ratingstablename, n, openconnection)
     cur = openconnection.cursor()
-    for i in range(0, n):
+    for i in range(n):
         cur.execute("select count(*) from {0}{1}".format(roundrobinpartitiontableprefix, i))
         count = cur.fetchone()[0]
         if count != countList[i]:
