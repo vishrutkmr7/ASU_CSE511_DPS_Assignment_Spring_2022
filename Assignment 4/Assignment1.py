@@ -41,7 +41,7 @@ def createDB(dbname=DATABASE_NAME):
     )
     count = cur.fetchone()[0]
     if count == 0:
-        cur.execute("CREATE DATABASE %s" % (dbname,))  # Create the database
+        cur.execute(f"CREATE DATABASE {dbname}")
     else:
         print("A database named {0} already exists".format(dbname))
 
@@ -54,7 +54,7 @@ def createDB(dbname=DATABASE_NAME):
 def loadRatings(ratingstablename, ratingsfilepath, openconnection):
     cur = openconnection.cursor()
 
-    cur.execute("DROP TABLE IF EXISTS " + ratingstablename)
+    cur.execute(f"DROP TABLE IF EXISTS {ratingstablename}")
 
     cur.execute(
         "CREATE TABLE "
@@ -101,9 +101,9 @@ def rangePartition(ratingstablename, numberofpartitions, openconnection):
         while i < numberofpartitions:
             newTableName = name + str(i)
             cursor.execute(
-                "CREATE TABLE IF NOT EXISTS %s(UserID INT, MovieID INT, Rating REAL)"
-                % (newTableName)
+                f"CREATE TABLE IF NOT EXISTS {newTableName}(UserID INT, MovieID INT, Rating REAL)"
             )
+
             i += 1
 
         i = 0
@@ -149,12 +149,12 @@ def rangePartition(ratingstablename, numberofpartitions, openconnection):
     except psycopg2.DatabaseError as e:
         if openconnection:
             openconnection.rollback()
-        print("Error %s" % e)
+        print(f"Error {e}")
         sys.exit(1)
     except IOError as e:
         if openconnection:
             openconnection.rollback()
-        print("Error %s" % e)
+        print(f"Error {e}")
         sys.exit(1)
     finally:
         if cursor:
@@ -177,16 +177,16 @@ def roundRobinPartition(ratingstablename, numberofpartitions, openconnection):
         )
         x = 0
         upperLimit = numberofpartitions
-        cursor.execute("SELECT * FROM %s" % ratingstablename)
+        cursor.execute(f"SELECT * FROM {ratingstablename}")
         rows = cursor.fetchall()
         lastInserted = 0
         for row in rows:
             if x < upperLimit:
                 newTableName = name + str(x)
                 cursor.execute(
-                    "CREATE TABLE %s(UserID INT, MovieID INT, Rating REAL)"
-                    % (newTableName)
+                    f"CREATE TABLE {newTableName}(UserID INT, MovieID INT, Rating REAL)"
                 )
+
                 cursor.execute(
                     "INSERT INTO %s(UserID, MovieID, Rating) VALUES(%d, %d, %f)"
                     % (newTableName, row[0], row[1], row[2])
@@ -210,12 +210,12 @@ def roundRobinPartition(ratingstablename, numberofpartitions, openconnection):
     except psycopg2.DatabaseError as e:
         if openconnection:
             openconnection.rollback()
-        print("Error %s" % e)
+        print(f"Error {e}")
         sys.exit(1)
     except IOError as e:
         if openconnection:
             openconnection.rollback()
-        print("Error %s" % e)
+        print(f"Error {e}")
         sys.exit(1)
     finally:
         if cursor:
@@ -231,19 +231,19 @@ def deleteTables(ratingstablename, openconnection):
             )
             tables = cursor.fetchall()
             for table_name in tables:
-                cursor.execute("DROP TABLE %s CASCADE" % (table_name[0]))
+                cursor.execute(f"DROP TABLE {table_name[0]} CASCADE")
         else:
-            cursor.execute("DROP TABLE %s CASCADE" % (ratingstablename))
+            cursor.execute(f"DROP TABLE {ratingstablename} CASCADE")
         openconnection.commit()
     except psycopg2.DatabaseError as e:
         if openconnection:
             openconnection.rollback()
-        print("Error %s" % e)
+        print(f"Error {e}")
         sys.exit(1)
     except IOError as e:
         if openconnection:
             openconnection.rollback()
-        print("Error %s" % e)
+        print(f"Error {e}")
         sys.exit(1)
     finally:
         if cursor:
